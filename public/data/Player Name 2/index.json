@@ -1,11 +1,16 @@
 {
   "player": "Player Name 2",
+  "sessions": [
+    "2025-08-17",
+    "2025-08-18"
+  ],
   "defaultSession": "2025-08-18",
-  "sessions": ["2025-08-17", "2025-08-18"],
-  "fbx": "EXPORT.fbx",
-  "excel": "Kinematic_Data (1).xlsx",
+  "fbx": "STICK.fbx",
+  "excel": "Kinematic_Data.xlsx",
   "files": {
-    "2025-08-17": { "fbx": "STICK.fbx",   "excel": "Kinematic_Data.xlsx" },
-    "2025-08-18": { "fbx": "EXPORT.fbx",  "excel": "Kinematic_Data (1).xlsx" }
+    "2025-08-18": {
+      "fbx": "EXPORT.fbx",
+      "excel": "Kinematic_Data (1).xlsx"
+    }
   }
 }
