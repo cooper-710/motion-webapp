@@ -220,7 +220,6 @@ export default function ThreeView() {
 
   /* Data (multi-sheet) */
   const [rowsBySheet, setRowsBySheet] = useState<RowsBySheet | null>(null);
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [sheet, setSheet] = useState<string | null>(null);
 
   const [rows, setRows] = useState<any[] | null>(null);
@@ -357,13 +356,11 @@ export default function ThreeView() {
           names[0];
 
         setRowsBySheet(sets);
-        setSheetNames(names);
         setSheet(preferred);
         setRows(sets[preferred]);
       } catch (err) {
         console.error("Excel load failed:", err);
         setRowsBySheet(null);
-        setSheetNames([]);
         setSheet(null);
         setRows(null);
       }
@@ -398,7 +395,6 @@ export default function ThreeView() {
       const arr = normalizeToArray(parsed) ?? [];
       const sets: RowsBySheet = { Data: arr };
       setRowsBySheet(sets);
-      setSheetNames(["Data"]);
       setSheet("Data");
       setRows(arr);
     } catch (err: any) {
@@ -422,7 +418,6 @@ export default function ThreeView() {
         names[0];
 
       setRowsBySheet(sets);
-      setSheetNames(names);
       setSheet(preferred);
       setRows(sets[preferred]);
       setPlaying(true);
@@ -492,7 +487,7 @@ export default function ThreeView() {
     if (!data || data.length === 0 || !channel) return { pts: [], dur: 0 };
 
     const hasT = data.some((d) => typeof (d as any)?.t === "number");
-    const hasTime = data.some((d) => typeof (d as any)?.time === "number");
+    the const hasTime = data.some((d) => typeof (d as any)?.time === "number");
     const tKey: "t" | "time" | null = hasT ? "t" : hasTime ? "time" : null;
 
     const n = data.length;
