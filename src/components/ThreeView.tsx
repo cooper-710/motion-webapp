@@ -1,11 +1,5 @@
 // src/components/ThreeView.tsx
-import React, {
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Line, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
@@ -28,10 +22,8 @@ type PlayerManifest = {
   player: string;
   defaultSession?: string;
   sessions: string[];
-  /** default filenames when a session has no override */
   fbx?: string;
   excel?: string;
-  /** per-session overrides */
   files?: Record<string, { fbx?: string; excel?: string }>;
 };
 
@@ -45,13 +37,11 @@ const DEFAULT_PLAYERS = ["Player Name", "Player Name 2"];
 const FLOOR_W = 10;
 const FLOOR_D = 6;
 
-/** Base-URL helper for GitHub Pages (and still fine locally) */
-const BASE_URL: string =
-  (import.meta as any).env?.BASE_URL && typeof (import.meta as any).env.BASE_URL === "string"
-    ? (import.meta as any).env.BASE_URL
-    : "/";
-const joinPath = (a: string, b: string) => `${a.replace(/\/+$/, "")}/${b.replace(/^\/+/, "")}`;
-const withBase = (p: string) => joinPath(BASE_URL, p);
+/** Base-URL helper for GitHub Pages (and still fine locally/Cloudflare) */
+const BASE_URL: string = import.meta.env.BASE_URL;
+const joinPath = (a: string, b: string) =>
+  `${a.replace(/\/+$/, "")}/${b.replace(/^\/+/, "")}`;
+const withBase = (p: string) => joinPath(BASE_URL || "/", p);
 
 /* ------------------------------------------------------------------ */
 /* Training Floor                                                      */
@@ -97,7 +87,7 @@ function TrainingFloor() {
         sectionColor="rgba(229,129,43,0.26)"
       />
 
-      {/* Orange perimeter (brand) */}
+      {/* Orange perimeter */}
       <Line
         points={boundaryPoints as unknown as [number, number, number][]}
         color="#E5812B"
@@ -107,13 +97,13 @@ function TrainingFloor() {
         toneMapped={false}
       />
 
-      {/* Soft inner glow around edges to lift the stage */}
+      {/* Soft inner glow around edges */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0002, 0]}>
         <planeGeometry args={[FLOOR_W * 0.985, FLOOR_D * 0.985]} />
         <meshBasicMaterial transparent opacity={0.18} color="#E5812B" />
       </mesh>
 
-      {/* Tight contact shadows (no giant diagonal shadow) */}
+      {/* Tight contact shadows */}
       <ContactShadows
         position={[0, 0.002, 0]}
         opacity={0.35}
@@ -145,11 +135,9 @@ function Scene({
     <>
       <hemisphereLight intensity={0.7} groundColor="#0d0f13" />
       <ambientLight intensity={0.25} />
-      {/* No castShadow to avoid big ground shadow; ContactShadows pins the rig */}
       <directionalLight position={[6, 10, 6]} intensity={1.05} color="#ffd1a3" />
 
       <TrainingFloor />
-
       <primitive object={axes} position={[0, 0.01, 0]} />
 
       {fbxUrl && (
@@ -171,9 +159,7 @@ function Scene({
 /* ------------------------------------------------------------------ */
 
 export default function ThreeView() {
-  /* --------------------------------------------------------------- */
-  /* URL/setup                                                       */
-  /* --------------------------------------------------------------- */
+  /* URL/setup */
   const params = isBrowser ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const initialMode: Mode = params.get("mode") === "admin" ? "admin" : "player";
   const [mode] = useState<Mode>(initialMode);
@@ -181,7 +167,10 @@ export default function ThreeView() {
 
   // Player locking via URL
   const paramPlayerRaw = params.get("player");
-  const initialPlayer = decodeURIComponent(paramPlayerRaw || DEFAULT_PLAYERS[0]);
+  // IMPORTANT: convert + to space (GitHub Pages links like ?player=Player+Name)
+  const decodedParamPlayer =
+    paramPlayerRaw ? decodeURIComponent(paramPlayerRaw.replace(/\+/g, " ")) : null;
+  const initialPlayer = decodedParamPlayer || DEFAULT_PLAYERS[0];
   const isPlayerLocked = params.get("lock") === "1" || (initialMode === "player" && !!paramPlayerRaw);
 
   // Optional list of players from ?players=A,B,C (only used if NOT locked)
@@ -203,14 +192,13 @@ export default function ThreeView() {
 
   // keep playerName in sync with URL when locked
   useEffect(() => {
-    if (!isPlayerLocked) return;
-    if (!paramPlayerRaw) return;
-    const decoded = decodeURIComponent(paramPlayerRaw);
+    if (!isPlayerLocked || !paramPlayerRaw) return;
+    const decoded = decodeURIComponent(paramPlayerRaw.replace(/\+/g, " "));
     if (decoded !== playerName) setPlayerName(decoded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlayerLocked, paramPlayerRaw]);
 
-  // Compact/mobile detection
+  /* Compact/mobile */
   const [isCompact, setIsCompact] = useState<boolean>(() =>
     isBrowser ? window.matchMedia("(max-width: 900px), (max-height: 700px)").matches : false
   );
@@ -222,19 +210,15 @@ export default function ThreeView() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  /* --------------------------------------------------------------- */
-  /* Playback                                                        */
-  /* --------------------------------------------------------------- */
+  /* Playback */
   const [fbxUrl, setFbxUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState(1); // 0.1 .. 2.0
+  const [speed, setSpeed] = useState(1);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [snapFrames, setSnapFrames] = useState(true);
 
-  /* --------------------------------------------------------------- */
-  /* Data (multi-sheet)                                              */
-  /* --------------------------------------------------------------- */
+  /* Data (multi-sheet) */
   const [rowsBySheet, setRowsBySheet] = useState<RowsBySheet | null>(null);
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [sheet, setSheet] = useState<string | null>(null);
@@ -250,9 +234,7 @@ export default function ThreeView() {
 
   const [jsonDuration, setJsonDuration] = useState(0);
 
-  /* --------------------------------------------------------------- */
-  /* Layout + panels                                                 */
-  /* --------------------------------------------------------------- */
+  /* Layout + panels */
   const [graphDock, setGraphDock] = useState<Layout>("bottom");
   const [panelMode, setPanelMode] = useState<PanelMode>("docked");
 
@@ -270,18 +252,16 @@ export default function ThreeView() {
   useEffect(() => {
     if (!isBrowser) return;
     localStorage.setItem("seq_showSecondGraph", showSecond ? "1" : "0");
-    localStorage.removeItem("seq_showMiniGraph"); // migrate old key
+    localStorage.removeItem("seq_showMiniGraph");
   }, [showSecond]);
 
-  // 3D panel positions (admin can drag in In-3D mode)
+  // 3D panel positions
   const [posMain, setPosMain] = useState<[number, number, number]>([3.8, 0.02, -2.6]);
   const [posSecond, setPosSecond] = useState<[number, number, number]>([1.0, 0.02, -4.2]);
 
-  /* --------------------------------------------------------------- */
-  /* Graph dock sizing (checkbox-driven 20/30/0)                     */
-  /* --------------------------------------------------------------- */
+  /* Graph dock sizing */
   const requestedGraphCount = (showMainGraph ? 1 : 0) + (showSecond ? 1 : 0);
-  const dockPct = requestedGraphCount === 2 ? 0.30 : requestedGraphCount === 1 ? 0.20 : 0;
+  const dockPct = requestedGraphCount === 2 ? 0.3 : requestedGraphCount === 1 ? 0.2 : 0;
 
   const [dockPx, setDockPx] = useState(() =>
     Math.round((isBrowser ? window.innerHeight : 900) * dockPct)
@@ -294,9 +274,7 @@ export default function ThreeView() {
     return () => window.removeEventListener("resize", onResize);
   }, [dockPct]);
 
-  /* --------------------------------------------------------------- */
-  /* Player manifest loader                                          */
-  /* --------------------------------------------------------------- */
+  /* Player manifest loader */
   const [manifest, setManifest] = useState<PlayerManifest | null>(null);
   const [sessions, setSessions] = useState<string[]>([]);
 
@@ -314,15 +292,11 @@ export default function ThreeView() {
 
         setManifest(m);
         setSessions(m.sessions ?? []);
-
         setSession((prev) =>
           prev && m.sessions?.includes(prev) ? prev : m.defaultSession ?? m.sessions?.[0] ?? null
         );
 
-        // Keep players list constrained when locked; otherwise enrich list.
-        setPlayers((list) =>
-          isPlayerLocked ? [p] : list.includes(p) ? list : [...list, p]
-        );
+        setPlayers((list) => (isPlayerLocked ? [p] : list.includes(p) ? list : [...list, p]));
       } catch (e) {
         console.error("Manifest load failed:", e);
         setManifest(null);
@@ -338,16 +312,12 @@ export default function ThreeView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerName, isPlayerLocked]);
 
-  /* --------------------------------------------------------------- */
-  /* Load session's FBX + Excel using manifest (with overrides)      */
-  /* --------------------------------------------------------------- */
+  /* Load session's FBX + Excel using manifest */
   useEffect(() => {
     if (!manifest || !session) return;
 
-    // Resolve filenames for this session
     const fileFBX = manifest.files?.[session]?.fbx ?? manifest.fbx ?? "EXPORT.fbx";
-    const fileExcel =
-      manifest.files?.[session]?.excel ?? manifest.excel ?? "Kinematic_Data (1).xlsx";
+    const fileExcel = manifest.files?.[session]?.excel ?? manifest.excel ?? "Kinematic_Data (1).xlsx";
 
     const fbxPath = withBase(
       `data/${encodeURIComponent(playerName)}/${session}/${encodeURIComponent(fileFBX)}`
@@ -362,18 +332,15 @@ export default function ThreeView() {
       sp.set("mode", isPlayer ? "player" : "admin");
       sp.set("player", playerName);
       sp.set("session", session);
-      if (isPlayerLocked) sp.set("lock", "1");
-      else sp.delete("lock");
+      if (isPlayerLocked) sp.set("lock", "1"); else sp.delete("lock");
       const newUrl = `${window.location.pathname}?${sp.toString()}`;
       if (newUrl !== window.location.href) window.history.replaceState({}, "", newUrl);
     }
 
-    // Set FBX first (Canvas will remount via the `key` below)
     setFbxUrl(fbxPath);
     setPlaying(true);
     setTime(0);
 
-    // Excel
     (async () => {
       try {
         const blob = await fetch(excelPath).then((r) => {
@@ -384,7 +351,6 @@ export default function ThreeView() {
         const names = Object.keys(sets);
         if (!names.length) throw new Error("No usable sheets found.");
 
-        // prefer “Joint Positions” etc.
         const preferred =
           names.find((n) => /joint.*position/i.test(n)) ??
           names.find((n) => /baseball.*data/i.test(n)) ??
@@ -404,18 +370,14 @@ export default function ThreeView() {
     })();
   }, [manifest, session, playerName, isPlayer, isPlayerLocked]);
 
-  /* --------------------------------------------------------------- */
-  /* Clean blob URLs (not used here, but keep the guard)             */
-  /* --------------------------------------------------------------- */
+  /* Clean blob URLs */
   useEffect(() => {
     return () => {
       if (fbxUrl?.startsWith("blob:")) URL.revokeObjectURL(fbxUrl);
     };
   }, [fbxUrl]);
 
-  /* --------------------------------------------------------------- */
-  /* Admin uploads (still available in admin mode)                   */
-  /* --------------------------------------------------------------- */
+  /* Admin uploads */
   function handleFbxFile(e: React.ChangeEvent<HTMLInputElement>) {
     if (mode !== "admin") return;
     const file = e.target.files?.[0];
@@ -483,9 +445,7 @@ export default function ThreeView() {
     a.remove();
   }
 
-  /* --------------------------------------------------------------- */
-  /* Helpers                                                         */
-  /* --------------------------------------------------------------- */
+  /* Helpers */
   function normalizeToArray(obj: any): any[] | null {
     if (Array.isArray(obj)) return obj;
     if (obj && typeof obj === "object") {
@@ -568,9 +528,7 @@ export default function ThreeView() {
     return { pts: normalized, dur };
   }
 
-  /* --------------------------------------------------------------- */
-  /* Recompute sheet/channels/series when data changes               */
-  /* --------------------------------------------------------------- */
+  /* Recompute sheet/channels/series when data changes */
   useEffect(() => {
     if (!rowsBySheet || !sheet) return;
     const newRows = rowsBySheet[sheet];
@@ -608,20 +566,16 @@ export default function ThreeView() {
     setSeriesB(pts);
   }, [rows, selectedChannelB]);
 
-  /* --------------------------------------------------------------- */
-  /* FBX duration callback                                           */
-  /* --------------------------------------------------------------- */
+  /* FBX duration callback */
   const onReadyDuration = useCallback((dur: number) => {
     setDuration(dur);
     setTime((t) => (dur > 0 ? (t % dur + dur) % dur : 0));
   }, []);
 
-  /* --------------------------------------------------------------- */
-  /* Playback loop (smooth with snap-to-frames accumulator)          */
-  /* --------------------------------------------------------------- */
+  /* Playback loop (smooth with snap-to-frames accumulator) */
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
-  const subFrameAccRef = useRef<number>(0); // accumulates fractional time while snapping
+  const subFrameAccRef = useRef<number>(0);
 
   const cancelLoop = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -640,7 +594,6 @@ export default function ThreeView() {
       if (lastTsRef.current == null) lastTsRef.current = ts;
       const dtRaw = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
-
       const dt = Math.min(Math.max(dtRaw, 0), 0.05);
 
       setTime((prev) => {
@@ -681,9 +634,7 @@ export default function ThreeView() {
     return cancelLoop;
   }, [startLoop, cancelLoop]);
 
-  /* --------------------------------------------------------------- */
-  /* Seek from graphs (map JSON time → FBX time)                     */
-  /* --------------------------------------------------------------- */
+  /* Seek from graphs (map JSON time → FBX time) */
   const handleGraphSeek = useCallback(
     (tJson: number) => {
       if (duration > 0 && jsonDuration > 0) {
@@ -705,11 +656,9 @@ export default function ThreeView() {
     ? ({ ["--brand-img" as any]: "56px", ["--brand-text" as any]: "24px" })
     : ({ ["--brand-img" as any]: "28px", ["--brand-text" as any]: "18px" })) as React.CSSProperties;
 
-  /* --------------------------------------------------------------- */
-  /* UI sizing                                                       */
-  /* --------------------------------------------------------------- */
+  /* UI sizing */
   const PANEL_PAD_TOP = 12;
-  const PANEL_PAD_BOTTOM = 34; // leaves room for iOS handle + our border
+  const PANEL_PAD_BOTTOM = 34;
   const ROW_GAP = 14;
   const EXTRA_CHROME = 12;
 
@@ -728,18 +677,9 @@ export default function ThreeView() {
   );
   const perGraphHeight = Math.max(isCompact ? 100 : 120, computedSlot);
 
-  /* --------------------------------------------------------------- */
-  /* Render                                                          */
-  /* --------------------------------------------------------------- */
+  /* Render */
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ width: "100vw", height: "100vh", position: "relative", overflow: "hidden" }}>
       {/* Top bar */}
       <div className={`toolbar ${isPlayer ? "is-player" : "is-admin"}`} style={toolbarVars}>
         <div className="brand" aria-label="Sequence">
@@ -772,14 +712,11 @@ export default function ThreeView() {
         <div className="ctrl">
           <span className="label">Player</span>
           {isPlayerLocked ? (
-            <span className="pill" title={playerName} aria-label="Player">{playerName}</span>
+            <span className="pill" title={playerName} aria-label="Player">
+              {playerName}
+            </span>
           ) : (
-            <select
-              className="select"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              title={playerName}
-            >
+            <select className="select" value={playerName} onChange={(e) => setPlayerName(e.target.value)} title={playerName}>
               {players.map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -846,19 +783,11 @@ export default function ThreeView() {
 
         {/* Player toggles */}
         <label className="toggle">
-          <input
-            type="checkbox"
-            checked={showMainGraph}
-            onChange={(e) => setShowMainGraph(e.target.checked)}
-          />
+          <input type="checkbox" checked={showMainGraph} onChange={(e) => setShowMainGraph(e.target.checked)} />
           <span>Main graph</span>
         </label>
         <label className="toggle">
-          <input
-            type="checkbox"
-            checked={showSecond}
-            onChange={(e) => setShowSecond(e.target.checked)}
-          />
+          <input type="checkbox" checked={showSecond} onChange={(e) => setShowSecond(e.target.checked)} />
           <span>Second graph</span>
         </label>
 
@@ -867,11 +796,7 @@ export default function ThreeView() {
           <>
             <div className="ctrl">
               <span className="label">Layout</span>
-              <select
-                className="select"
-                value={graphDock}
-                onChange={(e) => setGraphDock(e.target.value as Layout)}
-              >
+              <select className="select" value={graphDock} onChange={(e) => setGraphDock(e.target.value as Layout)}>
                 <option value="right">Right (stacked)</option>
                 <option value="bottom">Bottom</option>
               </select>
@@ -879,22 +804,14 @@ export default function ThreeView() {
 
             <div className="ctrl">
               <span className="label">Panels</span>
-              <select
-                className="select"
-                value={panelMode}
-                onChange={(e) => setPanelMode(e.target.value as PanelMode)}
-              >
+              <select className="select" value={panelMode} onChange={(e) => setPanelMode(e.target.value as PanelMode)}>
                 <option value="docked">Docked UI</option>
                 <option value="in3d">In-3D (holograms)</option>
               </select>
             </div>
 
             <label className="toggle">
-              <input
-                type="checkbox"
-                checked={snapFrames}
-                onChange={(e) => setSnapFrames(e.target.checked)}
-              />
+              <input type="checkbox" checked={snapFrames} onChange={(e) => setSnapFrames(e.target.checked)} />
               <span>Snap to frames</span>
             </label>
           </>
@@ -917,9 +834,7 @@ export default function ThreeView() {
             disabled={duration <= 0}
             style={{ width: isCompact ? 180 : isPlayer ? 360 : 260 }}
           />
-          {mode === "admin" && (
-            <span className="small">{`${fmt(time)} / ${fmt(duration || 0)} • ${FPS} fps`}</span>
-          )}
+          {mode === "admin" && <span className="small">{`${fmt(time)} / ${fmt(duration || 0)} • ${FPS} fps`}</span>}
         </div>
 
         {/* Speed */}
@@ -950,16 +865,13 @@ export default function ThreeView() {
 
       {/* 3D + (optional) hologram panels */}
       <Canvas
-        key={`${playerName}:${session ?? "none"}`} // remount on session/player change to avoid context-lost after bad loads
+        key={`${playerName}:${session ?? "none"}`}
         style={{
           position: "absolute",
           left: 0,
           right: 0,
           top: 0,
-          bottom:
-            panelMode === "docked" && graphDock === "bottom" && requestedGraphCount > 0
-              ? dockPx
-              : 0,
+          bottom: panelMode === "docked" && graphDock === "bottom" && requestedGraphCount > 0 ? dockPx : 0,
         }}
         dpr={isCompact ? [1, 1.25] : [1, 2]}
         camera={{ position: [4, 3, 6], fov: 45 }}
@@ -968,7 +880,7 @@ export default function ThreeView() {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.0;
-          gl.shadowMap.enabled = false; // disable the big diagonal ground shadow
+          gl.shadowMap.enabled = false;
         }}
       >
         <Scene fbxUrl={fbxUrl} time={time} onReadyDuration={onReadyDuration} />
@@ -1126,7 +1038,6 @@ export default function ThreeView() {
 
       {/* Theme & polish */}
       <style>{`
-        /* ---------- Theme tokens ---------- */
         .toolbar, .panel-wrap, .select, .btn {
           font-family: Inter, ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
         }
@@ -1144,18 +1055,10 @@ export default function ThreeView() {
           --shadow: 0 12px 40px rgba(0,0,0,0.45);
         }
 
-        /* ---------- Toolbar (glassy) ---------- */
         .toolbar {
-          position: absolute;
-          top: 12px;
-          left: 12px;
-          right: 12px;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 12px;
-          row-gap: 10px;
-          padding: 12px 14px;
+          position: absolute; top: 12px; left: 12px; right: 12px;
+          display: flex; flex-wrap: wrap; align-items: center;
+          gap: 12px; row-gap: 10px; padding: 12px 14px;
           border-radius: 14px;
           background:
             radial-gradient(900px 140px at 10% -60%, rgba(229,129,43,0.09), transparent 65%),
@@ -1163,40 +1066,25 @@ export default function ThreeView() {
           backdrop-filter: saturate(1.15) blur(10px);
           border: 1px solid var(--border);
           box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,0.06);
-          z-index: 10;
-          pointer-events: auto;
-          min-height: 64px;
+          z-index: 10; pointer-events: auto; min-height: 64px;
         }
 
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-right: 8px;
-        }
+        .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
         .brand img {
-          width: var(--brand-img);
-          height: var(--brand-img);
-          object-fit: contain;
+          width: var(--brand-img); height: var(--brand-img); object-fit: contain;
           border-radius: 50%;
           box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 6px 18px rgba(0,0,0,0.35);
         }
         .brand .name {
-          font-weight: 800;
-          letter-spacing: 0.06em;
-          color: var(--text);
-          font-size: var(--brand-text);
-          text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+          font-weight: 800; letter-spacing: 0.06em; color: var(--text);
+          font-size: var(--brand-text); text-shadow: 0 1px 0 rgba(0,0,0,0.35);
         }
 
-        /* ---------- Control groups ---------- */
         .ctrl { display: flex; align-items: center; gap: 6px; }
         .ctrl.grow { min-width: 320px; }
-
         .label { font-size: 12px; color: var(--muted); opacity: 0.9; }
         .small { font-size: 12px; color: var(--muted); opacity: 0.85; }
 
-        /* ---------- Selects ---------- */
         .select {
           appearance: none;
           background: linear-gradient(180deg, #12171e, #0f141a);
@@ -1215,43 +1103,29 @@ export default function ThreeView() {
           background-repeat: no-repeat;
         }
 
-        /* ---------- Buttons & Sliders ---------- */
         .btn {
           background: linear-gradient(180deg, #1b222c, #141a22);
-          color: #d7dde6;
-          border: 1px solid var(--border-strong);
-          border-radius: 11px;
-          height: 32px;
-          padding: 0 12px;
-          font-size: 12px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
+          color: #d7dde6; border: 1px solid var(--border-strong); border-radius: 11px;
+          height: 32px; padding: 0 12px; font-size: 12px;
+          display: inline-flex; align-items: center; gap: 6px;
           box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
         }
         .btn.primary {
           background: linear-gradient(180deg, var(--accent), var(--accent-deep));
-          color: #0b0e12;
-          border-color: rgba(255,180,120,0.9);
-          font-weight: 700;
-          box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 24px var(--glow);
+          color: #0b0e12; border-color: rgba(255,180,120,0.9);
+          font-weight: 700; box-shadow: 0 6px 24px var(--glow);
         }
 
         .slider {
-          -webkit-appearance: none;
-          width: 160px;
-          height: 6px;
-          border-radius: 999px;
+          -webkit-appearance: none; width: 160px; height: 6px; border-radius: 999px;
           background: linear-gradient(90deg, rgba(229,129,43,0.35), rgba(207,106,20,0.25));
           box-shadow: inset 0 1px 1px rgba(255,255,255,0.06), 0 0 0 1px var(--border);
           outline: none;
         }
 
-        /* ---------- Toggles (checkboxes) ---------- */
         .toggle { display:flex; align-items:center; gap:6px; color: var(--muted); font-size:12px; }
         .toggle input { accent-color: var(--accent); }
 
-        /* ---------- Pill (read-only player) ---------- */
         .pill {
           display:inline-flex; align-items:center;
           height:32px; padding:0 10px; border-radius:10px;
@@ -1260,16 +1134,13 @@ export default function ThreeView() {
           font-size:12px;
         }
 
-        /* ---------- Docked panel underlay ---------- */
         .panel-wrap {
-          pointer-events: auto;
-          border-radius: 14px;
+          pointer-events: auto; border-radius: 14px;
           background: linear-gradient(180deg, rgba(14,18,23,0.66), rgba(10,13,17,0.58));
           border: 1px solid var(--border);
           box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,0.04);
         }
 
-        /* ---------- Mobile / Compact tweaks ---------- */
         @media (max-width: 900px), (max-height: 700px) {
           .toolbar { gap: 8px; padding: 10px 12px; }
           .brand .name { display: none; }
