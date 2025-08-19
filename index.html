@@ -13,14 +13,18 @@
       content="SEQUENCE Motion Viewer — play FBX motion and view synced biomechanical signals."
     />
 
-    <!-- Brand icons -->
-    <link rel="icon" type="image/png" href="/Logo.png" />
-    <link rel="apple-touch-icon" href="/Logo.png" />
+    <!-- Make all relative URLs resolve from the current folder (works on subpaths like GitHub Pages) -->
+    <base href="./" />
+
+    <!-- Brand icons (relative paths so they work under a subpath) -->
+    <link rel="icon" type="image/png" href="Logo.png" />
+    <link rel="apple-touch-icon" href="Logo.png" />
 
     <title>SEQUENCE • Motion Viewer</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Relative module path; Vite rewrites this on build -->
+    <script type="module" src="src/main.tsx"></script>
   </body>
 </html>
