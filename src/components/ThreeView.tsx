@@ -45,6 +45,14 @@ const DEFAULT_PLAYERS = ["Player Name", "Player Name 2"];
 const FLOOR_W = 10;
 const FLOOR_D = 6;
 
+/** Base-URL helper for GitHub Pages (and still fine locally) */
+const BASE_URL: string =
+  (import.meta as any).env?.BASE_URL && typeof (import.meta as any).env.BASE_URL === "string"
+    ? (import.meta as any).env.BASE_URL
+    : "/";
+const joinPath = (a: string, b: string) => `${a.replace(/\/+$/, "")}/${b.replace(/^\/+/, "")}`;
+const withBase = (p: string) => joinPath(BASE_URL, p);
+
 /* ------------------------------------------------------------------ */
 /* Training Floor                                                      */
 /* ------------------------------------------------------------------ */
@@ -297,7 +305,7 @@ export default function ThreeView() {
 
     async function loadManifest(p: string) {
       try {
-        const url = `/data/${encodeURIComponent(p)}/index.json?ts=${Date.now()}`;
+        const url = withBase(`data/${encodeURIComponent(p)}/index.json?ts=${Date.now()}`);
         const m: PlayerManifest = await fetch(url).then((r) => {
           if (!r.ok) throw new Error(`manifest ${r.status}`);
           return r.json();
@@ -341,9 +349,12 @@ export default function ThreeView() {
     const fileExcel =
       manifest.files?.[session]?.excel ?? manifest.excel ?? "Kinematic_Data (1).xlsx";
 
-    const base = `/data/${encodeURIComponent(playerName)}/${session}`;
-    const fbxPath = `${base}/${encodeURIComponent(fileFBX)}`;
-    const excelPath = `${base}/${encodeURIComponent(fileExcel)}`;
+    const fbxPath = withBase(
+      `data/${encodeURIComponent(playerName)}/${session}/${encodeURIComponent(fileFBX)}`
+    );
+    const excelPath = withBase(
+      `data/${encodeURIComponent(playerName)}/${session}/${encodeURIComponent(fileExcel)}`
+    );
 
     // Update URL (player/session/lock) for shareability
     if (isBrowser) {
@@ -351,7 +362,8 @@ export default function ThreeView() {
       sp.set("mode", isPlayer ? "player" : "admin");
       sp.set("player", playerName);
       sp.set("session", session);
-      if (isPlayerLocked) sp.set("lock", "1"); else sp.delete("lock");
+      if (isPlayerLocked) sp.set("lock", "1");
+      else sp.delete("lock");
       const newUrl = `${window.location.pathname}?${sp.toString()}`;
       if (newUrl !== window.location.href) window.history.replaceState({}, "", newUrl);
     }
@@ -731,7 +743,7 @@ export default function ThreeView() {
       {/* Top bar */}
       <div className={`toolbar ${isPlayer ? "is-player" : "is-admin"}`} style={toolbarVars}>
         <div className="brand" aria-label="Sequence">
-          <img src="/Logo.png" alt="Sequence logo" />
+          <img src={withBase("Logo.png")} alt="Sequence logo" />
           <span className="name">SEQUENCE</span>
         </div>
 
