@@ -1,10 +1,9 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+// We read BASE_PATH from the environment at build time.
+// For GitHub Pages we'll set BASE_PATH=/motion-webapp/ in the workflow.
+export default defineConfig(() => ({
   plugins: [react()],
-  // Use relative asset paths in production so it works under any subpath.
-  // (Dev server still uses "/")
-  base: mode === 'production' ? './' : '/',
-}))
+  base: process.env.BASE_PATH ?? "/", // default for local/Cloudflare
+}));
