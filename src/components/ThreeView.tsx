@@ -487,7 +487,7 @@ export default function ThreeView() {
     if (!data || data.length === 0 || !channel) return { pts: [], dur: 0 };
 
     const hasT = data.some((d) => typeof (d as any)?.t === "number");
-    the const hasTime = data.some((d) => typeof (d as any)?.time === "number");
+    const hasTime = data.some((d) => typeof (d as any)?.time === "number");
     const tKey: "t" | "time" | null = hasT ? "t" : hasTime ? "time" : null;
 
     const n = data.length;
@@ -660,6 +660,7 @@ export default function ThreeView() {
   const availableGraphs = (series ? 1 : 0) + (seriesB ? 1 : 0);
   const activeGraphCount = Math.min(requestedGraphCount, availableGraphs);
 
+  const requestedGraphCount = (showMainGraph ? 1 : 0) + (showSecond ? 1 : 0);
   const shouldShowBottomDock =
     panelMode === "docked" && graphDock === "bottom" && requestedGraphCount > 0;
 
