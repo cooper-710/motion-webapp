@@ -1,0 +1,35 @@
+name: Generate player manifests
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "public/data/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Node is only used to run the tiny script (no deps needed)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate manifests
+        run: node scripts/gen-manifests.mjs
+
+      - name: Commit updated manifests
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update player manifests"
+          file_pattern: |
+            public/data/**/index.json
+            public/data/players.json
