@@ -167,7 +167,7 @@ export default function ThreeView() {
 
   // Player locking via URL
   const paramPlayerRaw = params.get("player");
-  // IMPORTANT: convert + to space (GitHub Pages links like ?player=Player+Name)
+  // convert + to space (GitHub Pages links like ?player=Player+Name)
   const decodedParamPlayer =
     paramPlayerRaw ? decodeURIComponent(paramPlayerRaw.replace(/\+/g, " ")) : null;
   const initialPlayer = decodedParamPlayer || DEFAULT_PLAYERS[0];
@@ -660,7 +660,6 @@ export default function ThreeView() {
   const availableGraphs = (series ? 1 : 0) + (seriesB ? 1 : 0);
   const activeGraphCount = Math.min(requestedGraphCount, availableGraphs);
 
-  const requestedGraphCount = (showMainGraph ? 1 : 0) + (showSecond ? 1 : 0);
   const shouldShowBottomDock =
     panelMode === "docked" && graphDock === "bottom" && requestedGraphCount > 0;
 
