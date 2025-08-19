@@ -1,0 +1,16 @@
+{
+  "player": "Player Name 4",
+  "sessions": [
+    "2025-08-17",
+    "2025-08-18"
+  ],
+  "defaultSession": "2025-08-18",
+  "fbx": "STICK.fbx",
+  "excel": "Kinematic_Data.xlsx",
+  "files": {
+    "2025-08-18": {
+      "fbx": "EXPORT.fbx",
+      "excel": "Kinematic_Data (1).xlsx"
+    }
+  }
+}
