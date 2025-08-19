@@ -167,7 +167,7 @@ export default function ThreeView() {
 
   // Player locking via URL
   const paramPlayerRaw = params.get("player");
-  // convert + to space (GitHub Pages links like ?player=Player+Name)
+  // IMPORTANT: convert + to space (GitHub Pages links like ?player=Player+Name)
   const decodedParamPlayer =
     paramPlayerRaw ? decodeURIComponent(paramPlayerRaw.replace(/\+/g, " ")) : null;
   const initialPlayer = decodedParamPlayer || DEFAULT_PLAYERS[0];
@@ -220,6 +220,7 @@ export default function ThreeView() {
 
   /* Data (multi-sheet) */
   const [rowsBySheet, setRowsBySheet] = useState<RowsBySheet | null>(null);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [sheet, setSheet] = useState<string | null>(null);
 
   const [rows, setRows] = useState<any[] | null>(null);
@@ -356,11 +357,13 @@ export default function ThreeView() {
           names[0];
 
         setRowsBySheet(sets);
+        setSheetNames(names);
         setSheet(preferred);
         setRows(sets[preferred]);
       } catch (err) {
         console.error("Excel load failed:", err);
         setRowsBySheet(null);
+        setSheetNames([]);
         setSheet(null);
         setRows(null);
       }
@@ -395,6 +398,7 @@ export default function ThreeView() {
       const arr = normalizeToArray(parsed) ?? [];
       const sets: RowsBySheet = { Data: arr };
       setRowsBySheet(sets);
+      setSheetNames(["Data"]);
       setSheet("Data");
       setRows(arr);
     } catch (err: any) {
@@ -418,6 +422,7 @@ export default function ThreeView() {
         names[0];
 
       setRowsBySheet(sets);
+      setSheetNames(names);
       setSheet(preferred);
       setRows(sets[preferred]);
       setPlaying(true);
@@ -738,6 +743,25 @@ export default function ThreeView() {
             ))}
           </select>
         </div>
+
+        {/* NEW: Sheet picker (when Excel has multiple sheets) */}
+        {sheetNames.length > 0 && (
+          <div className="ctrl">
+            <span className="label">Sheet</span>
+            <select
+              className="select"
+              value={sheet ?? ""}
+              onChange={(e) => setSheet(e.target.value)}
+              title={sheet ?? undefined}
+            >
+              {sheetNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Channels (after Excel is loaded) */}
         {channels.length > 0 && (
