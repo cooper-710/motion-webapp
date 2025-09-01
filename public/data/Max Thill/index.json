@@ -1,9 +1,15 @@
 {
   "player": "Max Thill",
   "sessions": [
-    "2025-08-25"
+    "2025-08-25",
+    "2025-08-25 (Hitter)"
   ],
-  "defaultSession": "2025-08-25",
+  "defaultSession": "2025-08-25 (Hitter)",
   "fbx": "template.fbx",
-  "excel": "Max Thill Kinematic_Data.xlsx"
+  "excel": "Max Thill Kinematic_Data.xlsx",
+  "files": {
+    "2025-08-25 (Hitter)": {
+      "excel": "Thill 2 Kinematic_Data.xlsx"
+    }
+  }
 }
