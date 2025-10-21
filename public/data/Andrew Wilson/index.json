@@ -1,9 +1,16 @@
 {
   "player": "Andrew Wilson",
   "sessions": [
-    "2025-08-25"
+    "2025-08-25",
+    "2025-10-25"
   ],
-  "defaultSession": "2025-08-25",
+  "defaultSession": "2025-10-25",
   "fbx": "template.fbx",
-  "excel": "Andrew Wilson Kinematic_Data.xlsx"
+  "excel": "Andrew Wilson Kinematic_Data.xlsx",
+  "files": {
+    "2025-10-25": {
+      "fbx": "RealTemplate.fbx",
+      "excel": "Kinematic_Data (3).xlsx"
+    }
+  }
 }
