@@ -1,0 +1,15 @@
+{
+  "player": "Trevor Porisch",
+  "sessions": [
+    "2025-10-21",
+    "2025-10-21 (Hitter)"
+  ],
+  "defaultSession": "2025-10-21 (Hitter)",
+  "fbx": "RealTemplate.fbx",
+  "excel": "Kinematic_Data (2).xlsx",
+  "files": {
+    "2025-10-21 (Hitter)": {
+      "excel": "Kinematic_Data (3).xlsx"
+    }
+  }
+}
