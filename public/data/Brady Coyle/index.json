@@ -2,14 +2,19 @@
   "player": "Brady Coyle",
   "sessions": [
     "2025-08-31",
-    "2025-08-31(Hitter)"
+    "2025-08-31(Hitter)",
+    "2025-10-21"
   ],
-  "defaultSession": "2025-08-31(Hitter)",
+  "defaultSession": "2025-10-21",
   "fbx": "template.fbx",
   "excel": "Brady Coyle Kinematic_Data.xlsx",
   "files": {
     "2025-08-31(Hitter)": {
       "excel": "Coyle Batting Kinematic_Data.xlsx"
+    },
+    "2025-10-21": {
+      "fbx": "RealTemplate.fbx",
+      "excel": "Kinematic_Data (2).xlsx"
     }
   }
 }
