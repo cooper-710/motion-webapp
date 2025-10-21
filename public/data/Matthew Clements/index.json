@@ -1,9 +1,16 @@
 {
   "player": "Matthew Clements",
   "sessions": [
-    "2025-08-31"
+    "2025-08-31",
+    "2025-10-21"
   ],
-  "defaultSession": "2025-08-31",
+  "defaultSession": "2025-10-21",
   "fbx": "template.fbx",
-  "excel": "Matthew Clements Kinematic_Data.xlsx"
+  "excel": "Matthew Clements Kinematic_Data.xlsx",
+  "files": {
+    "2025-10-21": {
+      "fbx": "RealTemplate.fbx",
+      "excel": "Kinematic_Data (2).xlsx"
+    }
+  }
 }
