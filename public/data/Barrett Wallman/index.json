@@ -1,9 +1,16 @@
 {
   "player": "Barrett Wallman",
   "sessions": [
+    "2025-10-21",
     "2025-25-08"
   ],
   "defaultSession": "2025-25-08",
-  "fbx": "template.fbx",
-  "excel": "Barrett WallmanKinematic_Data.xlsx"
+  "fbx": "RealTemplate.fbx",
+  "excel": "Kinematic_Data (3).xlsx",
+  "files": {
+    "2025-25-08": {
+      "fbx": "template.fbx",
+      "excel": "Barrett WallmanKinematic_Data.xlsx"
+    }
+  }
 }
