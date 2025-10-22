@@ -1,9 +1,15 @@
 {
   "player": "Johnny Testa",
   "sessions": [
-    "2025-08-31"
+    "2025-08-31",
+    "2025-10-21"
   ],
-  "defaultSession": "2025-08-31",
+  "defaultSession": "2025-10-21",
   "fbx": "template.fbx",
-  "excel": "Johnny Testa Kinematic_Data.xlsx"
+  "excel": "Johnny Testa Kinematic_Data.xlsx",
+  "files": {
+    "2025-10-21": {
+      "excel": "Kinematic_Data (3).xlsx"
+    }
+  }
 }
