@@ -31,7 +31,7 @@ const FPS = 120;
 const isBrowser = typeof window !== "undefined";
 
 /** Suggested players for the dropdown (you can extend via URL ?players=A,B,C) */
-const DEFAULT_PLAYERS = ["Player Name", "Player Name 2"];
+const DEFAULT_PLAYERS = ["Pete Alonso", "Player Name", "Player Name 2"];
 
 /** Training floor dimensions (meters-ish) */
 const FLOOR_W = 10;
@@ -189,6 +189,10 @@ export default function ThreeView() {
   const [playerName, setPlayerName] = useState<string>(initialPlayer);
   const [session, setSession] = useState<string | null>(urlSession);
   const [players, setPlayers] = useState<string[]>(initialPlayers);
+
+  /* PDF Viewer */
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const hasReport = playerName === "Pete Alonso";
 
   // keep playerName in sync with URL when locked
   useEffect(() => {
@@ -800,6 +804,15 @@ export default function ThreeView() {
           </>
         )}
 
+        {/* Read Report Button */}
+        {hasReport && (
+          <>
+            <button className="btn btn--primary" onClick={() => setShowPdfViewer(true)}>
+              Read Report
+            </button>
+          </>
+        )}
+
         {/* Player toggles */}
         <label className="toggle">
           <input type="checkbox" checked={showMainGraph} onChange={(e) => setShowMainGraph(e.target.checked)} />
@@ -1173,6 +1186,74 @@ export default function ThreeView() {
           .btn, .select, .slider, .toolbar { transition: none !important; }
         }
       `}</style>
+
+      {/* PDF Viewer Modal */}
+      {showPdfViewer && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: "rgba(0, 0, 0, 0.95)",
+          zIndex: 1000,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <div style={{
+            width: "90%",
+            height: "90%",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <h2 style={{
+                color: "var(--ink-0)",
+                fontSize: "24px",
+                fontWeight: 700,
+                margin: 0,
+              }}>
+                Player Report
+              </h2>
+              <button
+                onClick={() => setShowPdfViewer(false)}
+                style={{
+                  background: "linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%)",
+                  color: "#0b0e12",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "transform 0.12s ease",
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
+                onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
+              >
+                Close
+              </button>
+            </div>
+            <iframe
+              src={withBase("Pete_Alonso.pdf")}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "1px solid var(--glass-brd)",
+                borderRadius: "var(--radius-md)",
+              }}
+              title="Player Report PDF"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
