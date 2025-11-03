@@ -1,25 +1,41 @@
-.DS_Store
+# Dependencies
 node_modules/
 dist/
 build/
-.cache/
-.tmp/
-npm-debug.log*
-yarn-*.log*
-.vite/
-.next/
-out/
+
+# Environment variables
 .env
 .env.*
 !.env.example
+.env.local
+
+# Build outputs and caches
+.cache/
+.tmp/
+.vite/
+.next/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-*.log*
+
+# Editor directories
 .vscode/
 .idea/
 *.swp
-# --- essentials ---
-node_modules/
-dist/
-build/
+
+# macOS system files (especially from Desktop)
 .DS_Store
-.env
-.env.local
-*.log
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+*.localized
+Icon?
+Icon\015
+
+# Windows
+Thumbs.db
+ehthumbs.db
