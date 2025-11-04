@@ -54,7 +54,7 @@ const SimpleGraph: React.FC<Props> = ({
   fbxDuration,
   height = 180,
   title,
-  yLabel = "Value",
+  yLabel,
   onSeek,
 }) => {
   const { ref, rect } = useMeasure<HTMLDivElement>();
@@ -74,31 +74,56 @@ const SimpleGraph: React.FC<Props> = ({
   }, [fbxDuration, xMax]);
 
   // y domain
-  const { yMin, yMax } = useMemo(() => {
-    if (!data || data.length === 0) return { yMin: 0, yMax: 1 };
+  const { yMin, yMax, maxValueTime } = useMemo(() => {
+    if (!data || data.length === 0) return { yMin: 0, yMax: 1, maxValueTime: 0 };
     let min = Infinity, max = -Infinity;
+    let maxTime = 0;
     for (const d of data) {
       const v = d.value;
       if (Number.isFinite(v)) {
         if (v < min) min = v;
-        if (v > max) max = v;
+        if (v > max) {
+          max = v;
+          maxTime = d.t ?? 0;
+        }
       }
     }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) return { yMin: 0, yMax: 1 };
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return { yMin: 0, yMax: 1, maxValueTime: 0 };
     if (min === max) {
       const pad = Math.abs(min) > 1 ? Math.abs(min) * 0.05 : 0.5;
-      return { yMin: min - pad, yMax: max + pad };
+      return { yMin: min - pad, yMax: max + pad, maxValueTime: maxTime };
     }
     const pad = (max - min) * 0.08;
-    return { yMin: min - pad, yMax: max + pad };
+    return { yMin: min - pad, yMax: max + pad, maxValueTime: maxTime };
   }, [data]);
 
   /* -------------------------- Ticks -------------------------- */
+  // Generate nice round whole number ticks for y-axis
   const yTicks = useMemo(() => {
-    const n = 4;
+    if (yMax <= yMin) return [];
+    const range = yMax - yMin;
+    if (range === 0) return [Math.round(yMin)];
+    
+    // Find a nice step size that gives us 4-6 ticks
+    const rawStep = range / 5;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const normalized = rawStep / magnitude;
+    
+    // Round to 1, 2, 5, or 10 times the magnitude
+    let step = magnitude;
+    if (normalized <= 1) step = magnitude;
+    else if (normalized <= 2) step = 2 * magnitude;
+    else if (normalized <= 5) step = 5 * magnitude;
+    else step = 10 * magnitude;
+    
+    // Round min/max to step boundaries
+    const roundedMin = Math.floor(yMin / step) * step;
+    const roundedMax = Math.ceil(yMax / step) * step;
+    
     const res: number[] = [];
-    if (yMax <= yMin) return res;
-    for (let i = 0; i <= n; i++) res.push(yMin + (i / n) * (yMax - yMin));
+    for (let val = roundedMin; val <= roundedMax + 0.001; val += step) {
+      res.push(Math.round(val));
+    }
     return res;
   }, [yMin, yMax]);
 
@@ -118,13 +143,14 @@ const SimpleGraph: React.FC<Props> = ({
   }, [xMin, xMax, labelSeconds]);
 
   /* -------------------- Layout & transforms ------------------- */
-  const tickStrings = yTicks.map((v) => v.toFixed(2));
-  const maxChars = Math.max(4, ...tickStrings.map((s) => s.length)); // e.g. "-1930.42"
-  const CHAR_W = 7;     // ~px at 11px font
-  const labelPad = 10;
-  const dynamicLeft = Math.min(120, Math.max(56, maxChars * CHAR_W + labelPad + 8));
+  // Calculate left margin based on whole number tick labels
+  const tickStrings = yTicks.map((v) => Math.round(v).toString());
+  const maxChars = Math.max(4, ...tickStrings.map((s) => s.length)); // e.g. "-1930"
+  const CHAR_W = 7.5;     // ~px at 12px font
+  const labelPad = 14;
+  const dynamicLeft = Math.min(130, Math.max(60, maxChars * CHAR_W + labelPad + 10));
 
-  const margin = { top: (title || yLabel) ? 34 : 20, right: 18, bottom: 36, left: dynamicLeft };
+  const margin = { top: (title || yLabel) ? 40 : 24, right: 22, bottom: 42, left: dynamicLeft };
 
   const width = Math.max(160, (rect?.width ?? 420));
   const innerW = Math.max(10, width - margin.left - margin.right);
@@ -248,12 +274,12 @@ const SimpleGraph: React.FC<Props> = ({
         {(title || yLabel) && (
           <>
             {title && (
-              <text x={margin.left} y={16} fill="#cfd6e2" fontSize={12} fontWeight={700}>
+              <text x={margin.left} y={18} fill="#cfd6e2" fontSize={13} fontWeight={700}>
                 {title}
               </text>
             )}
             {yLabel && (
-              <text x={margin.left} y={30} fill="#9fb1c7" fontSize={11}>
+              <text x={margin.left} y={33} fill="#d0d0d0" fontSize={11}>
                 {yLabel}
               </text>
             )}
@@ -263,7 +289,9 @@ const SimpleGraph: React.FC<Props> = ({
         {/* Y grid + labels */}
         {yTicks.map((yv, i) => {
           const y = yToPx(yv);
-          const label = yv.toFixed(2);
+          // Format as whole number (no decimals)
+          const label = Math.round(yv).toString();
+          const isZero = Math.round(yv) === 0;
           return (
             <g key={`yg-${i}`}>
               <line
@@ -271,15 +299,15 @@ const SimpleGraph: React.FC<Props> = ({
                 x2={width - margin.right}
                 y1={y}
                 y2={y}
-                stroke="rgba(200,220,255,0.10)"
-                strokeWidth={1}
+                stroke="rgba(200,200,200,0.10)"
+                strokeWidth={isZero ? 2 : 1}
               />
               <text
-                x={margin.left - 6}
-                y={y + 3}
+                x={margin.left - 10}
+                y={y + 4}
                 textAnchor="end"
-                fill="#9fb1c7"
-                fontSize={11}
+                fill="#d0d0d0"
+                fontSize={12}
               >
                 {label}
               </text>
@@ -297,21 +325,33 @@ const SimpleGraph: React.FC<Props> = ({
                 x2={x}
                 y1={margin.top}
                 y2={height - margin.bottom}
-                stroke="rgba(200,220,255,0.06)"
+                stroke="rgba(200,200,200,0.06)"
                 strokeWidth={1}
               />
               <text
                 x={x}
-                y={height - margin.bottom + 18}
+                y={height - margin.bottom + 20}
                 textAnchor="middle"
-                fill="#9fb1c7"
-                fontSize={11}
+                fill="#d0d0d0"
+                fontSize={12}
               >
                 {labelSec.toFixed(2)}s
               </text>
             </g>
           );
         })}
+
+        {/* Max value line (vertical) */}
+        <line
+          x1={xToPx(maxValueTime)}
+          x2={xToPx(maxValueTime)}
+          y1={margin.top}
+          y2={height - margin.bottom}
+          stroke="#c8d0dc"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+          opacity={0.6}
+        />
 
         {/* Signal */}
         <path

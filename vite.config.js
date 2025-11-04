@@ -6,4 +6,7 @@ const base = process.env.BASE_PATH || "/";
 export default defineConfig({
   base,
   plugins: [react()],
+  server: {
+    port: 4000,
+  },
 });

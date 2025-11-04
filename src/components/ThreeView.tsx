@@ -1,11 +1,13 @@
 // src/components/ThreeView.tsx
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, Grid, Line, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import FBXModel from "./FBXModel";
 import SimpleGraph from "./SimpleGraph";
 import GraphHoloPanel from "./GraphHoloPanel";
+import CustomSelect from "./CustomSelect";
+
 import { parseExcelToDataSets } from "../utils/excel";
 import type { RowsBySheet } from "../utils/excel";
 
@@ -48,70 +50,47 @@ const withBase = (p: string) => joinPath(BASE_URL || "/", p);
 /* ------------------------------------------------------------------ */
 
 function TrainingFloor() {
-  const halfW = FLOOR_W / 2;
-  const halfD = FLOOR_D / 2;
-
-  const boundaryPoints = useMemo(
-    () => [
-      [-halfW, 0, -halfD],
-      [halfW, 0, -halfD],
-      [halfW, 0, halfD],
-      [-halfW, 0, halfD],
-      [-halfW, 0, -halfD],
-    ],
-    [halfW, halfD]
-  );
-
   return (
     <group>
-      {/* Matte base plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]}>
-        <planeGeometry args={[FLOOR_W, FLOOR_D]} />
-        <meshStandardMaterial color="#0b0e12" roughness={1} metalness={0} />
-      </mesh>
-
-      {/* Localized grid INSIDE the boundary */}
-      <Grid
-        args={[FLOOR_W, FLOOR_D]}
-        position={[0, 0.0004, 0]}
+      {/* Black base plane with subtle texture */}
+      <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        cellSize={0.5}
-        cellThickness={0.22}
-        sectionSize={2.5}
-        sectionThickness={1.05}
-        infiniteGrid={false}
-        followCamera={false}
-        fadeDistance={0}
-        fadeStrength={0}
-        cellColor="rgba(142,168,194,0.18)"
-        sectionColor="rgba(229,129,43,0.26)"
-      />
-
-      {/* Orange perimeter */}
-      <Line
-        points={boundaryPoints as unknown as [number, number, number][]}
-        color="#E5812B"
-        lineWidth={1.4}
-        transparent
-        opacity={0.95}
-        toneMapped={false}
-      />
-
-      {/* Soft inner glow around edges */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0002, 0]}>
-        <planeGeometry args={[FLOOR_W * 0.985, FLOOR_D * 0.985]} />
-        <meshBasicMaterial transparent opacity={0.18} color="#E5812B" />
+        position={[0, -0.001, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[1000, 1000]} />
+        <meshStandardMaterial
+          color="#0a0a0a"
+          roughness={0.95}
+          metalness={0.02}
+          emissive="#000000"
+          emissiveIntensity={0}
+        />
       </mesh>
 
-      {/* Tight contact shadows */}
+      {/* Infinite orange grid with better styling */}
+      <Grid
+        infiniteGrid
+        cellSize={0.5}
+        cellThickness={0.4}
+        cellColor="#e5812b"
+        sectionSize={2.5}
+        sectionThickness={0.6}
+        sectionColor="#e5812b"
+        fadeDistance={60}
+        fadeStrength={2.5}
+      />
+
+      {/* Enhanced contact shadows */}
       <ContactShadows
         position={[0, 0.002, 0]}
-        opacity={0.35}
-        scale={Math.max(FLOOR_W, FLOOR_D) + 1.6}
-        blur={2.8}
-        far={10}
+        opacity={0.4}
+        scale={Math.max(FLOOR_W, FLOOR_D) + 2}
+        blur={3.2}
+        far={12}
         resolution={1024}
         frames={1}
+        color="#000000"
       />
     </group>
   );
@@ -121,24 +100,197 @@ function TrainingFloor() {
 /* Scene                                                               */
 /* ------------------------------------------------------------------ */
 
+type CameraControlsRef = {
+  setView: (view: string) => void;
+};
+
+function CameraControlsComponent({
+  controlsRef,
+}: {
+  controlsRef: React.MutableRefObject<CameraControlsRef | null>;
+}) {
+  const controlsRefInternal = useRef<any>(null);
+  const { camera, clock } = useThree();
+  const animatingRef = useRef(false);
+  const targetPositionRef = useRef<THREE.Vector3 | null>(null);
+  const targetTargetRef = useRef<THREE.Vector3 | null>(null);
+  const startPositionRef = useRef<THREE.Vector3 | null>(null);
+  const startTargetRef = useRef<THREE.Vector3 | null>(null);
+  const animationStartTimeRef = useRef<number>(0);
+
+  const ANIMATION_DURATION = 1.0; // seconds
+
+  useFrame(() => {
+    if (!animatingRef.current || !targetPositionRef.current || !targetTargetRef.current) return;
+
+    const controls = controlsRefInternal.current;
+    if (!controls) return;
+
+    const elapsed = clock.elapsedTime - animationStartTimeRef.current;
+    const progress = Math.min(elapsed / ANIMATION_DURATION, 1);
+
+    // Easing function (ease-in-out)
+    const eased = progress < 0.5
+      ? 2 * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    if (startPositionRef.current && startTargetRef.current) {
+      // Lerp camera position
+      camera.position.lerpVectors(startPositionRef.current, targetPositionRef.current, eased);
+
+      // Lerp controls target
+      if (controls.target) {
+        controls.target.lerpVectors(startTargetRef.current, targetTargetRef.current, eased);
+      }
+
+      controls.update?.();
+    }
+
+    // End animation
+    if (progress >= 1) {
+      if (targetPositionRef.current) {
+        camera.position.copy(targetPositionRef.current);
+      }
+      if (targetTargetRef.current && controls.target) {
+        controls.target.copy(targetTargetRef.current);
+      }
+      controls.update?.();
+      animatingRef.current = false;
+      
+      // Re-enable controls after animation
+      controls.enabled = true;
+      
+      targetPositionRef.current = null;
+      targetTargetRef.current = null;
+      startPositionRef.current = null;
+      startTargetRef.current = null;
+    }
+  });
+
+  useEffect(() => {
+    if (controlsRefInternal.current) {
+      const controls = controlsRefInternal.current;
+
+      const setView = (view: string) => {
+        const target = new THREE.Vector3(0, 0, 0);
+        const distance = 8;
+        let position: [number, number, number];
+
+        switch (view) {
+          case "front":
+            position = [0, 2, distance];
+            break;
+          case "back":
+            position = [0, 2, -distance];
+            break;
+          case "left":
+            position = [-distance, 2, 0];
+            break;
+          case "right":
+            position = [distance, 2, 0];
+            break;
+          case "diagonal1":
+            position = [distance * 0.7, 3, distance * 0.7];
+            break;
+          case "diagonal2":
+            position = [-distance * 0.7, 3, distance * 0.7];
+            break;
+          default:
+            position = [0, 2, distance];
+        }
+
+        const pos = new THREE.Vector3(...position);
+        
+        // Store start positions for animation
+        startPositionRef.current = camera.position.clone();
+        startTargetRef.current = controls.target ? controls.target.clone() : new THREE.Vector3(0, 0, 0);
+        
+        // Store target positions
+        targetPositionRef.current = pos;
+        targetTargetRef.current = target;
+        
+        // Start animation
+        animatingRef.current = true;
+        animationStartTimeRef.current = clock.elapsedTime;
+        
+        // Disable controls during animation
+        if (controls) {
+          controls.enabled = false;
+        }
+      };
+
+      controlsRef.current = { setView };
+    }
+  }, [controlsRef, camera, clock]);
+
+  return (
+    <OrbitControls
+      ref={controlsRefInternal}
+      enableDamping
+      dampingFactor={0.08}
+    />
+  );
+}
+
 function Scene({
   fbxUrl,
   time,
+  displayMode,
   onReadyDuration,
 }: {
   fbxUrl: string | null;
   time: number;
+  displayMode: "normal" | "stick";
   onReadyDuration: (dur: number) => void;
 }) {
-  const axes = useMemo(() => new THREE.AxesHelper(1.5), []);
   return (
     <>
-      <hemisphereLight intensity={0.7} groundColor="#0d0f13" />
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[6, 10, 6]} intensity={1.05} color="#ffd1a3" />
+      {/* Professional lighting setup */}
+      <ambientLight intensity={0.4} color="#ffffff" />
+      
+      {/* Main key light */}
+      <directionalLight
+        position={[8, 12, 6]}
+        intensity={1.2}
+        color="#ffecd1"
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-far={50}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+        shadow-bias={-0.0001}
+      />
+      
+      {/* Fill light from opposite side */}
+      <directionalLight
+        position={[-6, 8, -4]}
+        intensity={0.4}
+        color="#8bb3ff"
+      />
+      
+      {/* Rim/accent light */}
+      <directionalLight
+        position={[-4, 6, 8]}
+        intensity={0.5}
+        color="#ffb366"
+      />
+      
+      {/* Soft hemisphere for ambient */}
+      <hemisphereLight
+        intensity={0.6}
+        color="#ffffff"
+        groundColor="#1a1f2e"
+      />
 
       <TrainingFloor />
-      <primitive object={axes} position={[0, 0.01, 0]} />
+      
+      {/* Axes helper (red=X, green=Y, blue=Z) */}
+      <group position={[0, 0.01, 0]}>
+        <axesHelper args={[1.5]} />
+      </group>
 
       {fbxUrl && (
         <FBXModel
@@ -147,6 +299,7 @@ function Scene({
           position={[0, 0, 0]}
           rotation={[0, 0, 0]}
           time={time}
+          displayMode={displayMode}
           onReadyDuration={onReadyDuration}
         />
       )}
@@ -164,6 +317,10 @@ export default function ThreeView() {
   const initialMode: Mode = params.get("mode") === "admin" ? "admin" : "player";
   const [mode] = useState<Mode>(initialMode);
   const isPlayer = mode === "player";
+
+  /* Camera controls ref for preset views */
+  const cameraControlsRef = useRef<CameraControlsRef | null>(null);
+  const [currentView, setCurrentView] = useState<string>("front");
 
   // Player locking via URL
   const paramPlayerRaw = params.get("player");
@@ -194,6 +351,8 @@ export default function ThreeView() {
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const hasReport = playerName === "Pete Alonso";
 
+
+
   // keep playerName in sync with URL when locked
   useEffect(() => {
     if (!isPlayerLocked || !paramPlayerRaw) return;
@@ -221,6 +380,7 @@ export default function ThreeView() {
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [snapFrames, setSnapFrames] = useState(true);
+  const [displayMode, setDisplayMode] = useState<"normal" | "stick">("normal");
 
   /* Data (multi-sheet) */
   const [rowsBySheet, setRowsBySheet] = useState<RowsBySheet | null>(null);
@@ -281,6 +441,39 @@ export default function ThreeView() {
   /* Player manifest loader */
   const [manifest, setManifest] = useState<PlayerManifest | null>(null);
   const [sessions, setSessions] = useState<string[]>([]);
+
+  /* Load all players for admin mode */
+  useEffect(() => {
+    if (mode !== "admin" || isPlayerLocked) return;
+    
+    let cancelled = false;
+
+    async function loadAllPlayers() {
+      try {
+        const url = withBase(`data/players.json?ts=${Date.now()}`);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`players.json ${response.status}`);
+        
+        const playersList: Array<{ player: string; defaultSession?: string }> = await response.json();
+        if (cancelled) return;
+
+        const playerNames = playersList.map(p => p.player).sort();
+        setPlayers((list) => {
+          // Merge with existing list, keeping order: existing items first, then new ones
+          const existing = new Set(list);
+          const newPlayers = playerNames.filter(p => !existing.has(p));
+          return [...list, ...newPlayers].sort();
+        });
+      } catch (e) {
+        console.warn("Could not load players.json, using discovered players:", e);
+      }
+    }
+
+    loadAllPlayers();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, isPlayerLocked]);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,8 +549,8 @@ export default function ThreeView() {
         if (!names.length) throw new Error("No usable sheets found.");
 
         const preferred =
-          names.find((n) => /joint.*position/i.test(n)) ??
           names.find((n) => /baseball.*data/i.test(n)) ??
+          names.find((n) => /joint.*position/i.test(n)) ??
           names[0];
 
         setRowsBySheet(sets);
@@ -421,8 +614,8 @@ export default function ThreeView() {
       if (!names.length) throw new Error("No usable sheets found.");
 
       const preferred =
-        names.find((n) => /joint.*position/i.test(n)) ??
         names.find((n) => /baseball.*data/i.test(n)) ??
+        names.find((n) => /joint.*position/i.test(n)) ??
         names[0];
 
       setRowsBySheet(sets);
@@ -570,6 +763,8 @@ export default function ThreeView() {
     setSeriesB(pts);
   }, [rows, selectedChannelB]);
 
+
+
   /* FBX duration callback */
   const onReadyDuration = useCallback((dur: number) => {
     setDuration(dur);
@@ -656,6 +851,11 @@ export default function ThreeView() {
 
   const fmt = (s: number) => `${s.toFixed(2)}s`;
 
+  /* Preset camera views */
+  const handlePresetView = (view: string) => {
+    cameraControlsRef.current?.setView(view);
+  };
+
   const toolbarVars = (isPlayer
     ? ({ ["--brand-img" as any]: "56px", ["--brand-text" as any]: "24px" })
     : ({ ["--brand-img" as any]: "28px", ["--brand-text" as any]: "18px" })) as React.CSSProperties;
@@ -687,13 +887,13 @@ export default function ThreeView() {
       {/* Top bar */}
       <div className={`toolbar ${isPlayer ? "is-player" : "is-admin"}`} style={toolbarVars}>
         <div className="brand" aria-label="Sequence">
-          <img src={withBase("Logo.png")} alt="Sequence logo" />
+          <img src={withBase("Sequence.png")} alt="Sequence logo" />
           <span className="name">SEQUENCE</span>
         </div>
 
         {/* Admin uploads */}
         {mode === "admin" && (
-          <>
+          <div className="toolbar-group">
             <label className="btn" style={{ cursor: "pointer" }}>
               Upload .fbx
               <input type="file" accept=".fbx" onChange={handleFbxFile} style={{ display: "none" }} />
@@ -709,190 +909,183 @@ export default function ThreeView() {
             <button className="btn ghost" onClick={exportCurrentJSON} disabled={!rows || rows.length === 0}>
               Export JSON
             </button>
-          </>
-        )}
-
-        {/* Player (pill when locked; select otherwise) */}
-        <div className="ctrl">
-          <span className="label">Player</span>
-          {isPlayerLocked ? (
-            <span className="pill" title={playerName} aria-label="Player">
-              {playerName}
-            </span>
-          ) : (
-            <select className="select" value={playerName} onChange={(e) => setPlayerName(e.target.value)} title={playerName}>
-              {players.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Session picker */}
-        <div className="ctrl">
-          <span className="label">Session</span>
-          <select
-            className="select"
-            value={session ?? ""}
-            onChange={(e) => setSession(e.target.value)}
-            title={session ?? undefined}
-            disabled={!sessions.length}
-          >
-            {sessions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* NEW: Sheet picker (when Excel has multiple sheets) */}
-        {sheetNames.length > 0 && (
-          <div className="ctrl">
-            <span className="label">Sheet</span>
-            <select
-              className="select"
-              value={sheet ?? ""}
-              onChange={(e) => setSheet(e.target.value)}
-              title={sheet ?? undefined}
-            >
-              {sheetNames.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
           </div>
         )}
 
-        {/* Channels (after Excel is loaded) */}
-        {channels.length > 0 && (
-          <>
+        {/* Data source selection */}
+        <div className="toolbar-group">
+          <div className="ctrl">
+            <span className="label">Player</span>
+            {isPlayerLocked ? (
+              <span className="pill" title={playerName} aria-label="Player">
+                {playerName}
+              </span>
+            ) : (
+              <CustomSelect
+                value={playerName}
+                onChange={setPlayerName}
+                options={players.map((n) => ({ value: n, label: n }))}
+                title={playerName}
+                searchable={true}
+              />
+            )}
+          </div>
+          <div className="ctrl">
+            <span className="label">Session</span>
+            <CustomSelect
+              value={session ?? ""}
+              onChange={(v) => setSession(v || null)}
+              options={sessions.map((s) => ({ value: s, label: s }))}
+              title={session ?? undefined}
+              disabled={!sessions.length}
+              placeholder="Session..."
+            />
+          </div>
+          {sheetNames.length > 0 && (
             <div className="ctrl">
-              <span className="label">Main channel</span>
-              <select
-                className="select"
-                value={selectedChannel ?? ""}
-                onChange={(e) => setSelectedChannel(e.target.value)}
-                title={selectedChannel ?? undefined}
-              >
-                {channels.map((k) => (
-                  <option key={k} value={k}>
-                    {k.split("/").slice(-2).join(" / ").replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
+              <span className="label">Sheet</span>
+              <CustomSelect
+                value={sheet ?? ""}
+                onChange={(v) => setSheet(v || null)}
+                options={sheetNames.map((n) => ({ value: n, label: n }))}
+                title={sheet ?? undefined}
+              />
             </div>
+          )}
+        </div>
 
-            <div className="ctrl">
-              <span className="label">Second channel</span>
-              <select
-                className="select"
-                value={selectedChannelB ?? ""}
-                onChange={(e) => setSelectedChannelB(e.target.value)}
-                title={selectedChannelB ?? undefined}
-              >
-                {channels.map((k) => (
-                  <option key={k} value={k}>
-                    {k.split("/").slice(-2).join(" / ").replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
+        {/* Visualization controls */}
+        <div className="toolbar-group">
+          {channels.length > 0 && (
+            <>
+              <div className="ctrl">
+                <span className="label">Stat 1</span>
+                <CustomSelect
+                  value={selectedChannel ?? ""}
+                  onChange={(v) => setSelectedChannel(v || null)}
+                  options={channels.map((k) => ({
+                    value: k,
+                    label: prettyLabel(k),
+                  }))}
+                  title={selectedChannel ? prettyLabel(selectedChannel) : undefined}
+                  searchable={true}
+                />
+              </div>
+              <div className="ctrl">
+                <span className="label">Stat 2</span>
+                <CustomSelect
+                  value={selectedChannelB ?? ""}
+                  onChange={(v) => setSelectedChannelB(v || null)}
+                  options={channels.map((k) => ({
+                    value: k,
+                    label: prettyLabel(k),
+                  }))}
+                  title={selectedChannelB ? prettyLabel(selectedChannelB) : undefined}
+                  searchable={true}
+                />
+              </div>
+            </>
+          )}
+          <div className="ctrl">
+            <span className="label">View</span>
+            <CustomSelect
+              value={currentView}
+              onChange={(view) => {
+                setCurrentView(view);
+                handlePresetView(view);
+              }}
+              options={[
+                { value: "front", label: "Front" },
+                { value: "back", label: "Back" },
+                { value: "left", label: "Left" },
+                { value: "right", label: "Right" },
+                { value: "diagonal1", label: "Diagonal" },
+                { value: "diagonal2", label: "Diagonal 2" },
+              ]}
+            />
+          </div>
+        </div>
 
-        {/* Read Report Button */}
-        {hasReport && (
-          <>
+        {/* Playback controls */}
+        <div className="toolbar-group transport-controls">
+          <div className="ctrl grow">
+            <span className="label">Time</span>
+            <input
+              className="slider"
+              type="range"
+              min={0}
+              max={Math.max(0.001, duration || 0.001)}
+              step={snapFrames ? 1 / FPS : Math.max(0.001, (duration || 1) / 1000)}
+              value={Math.min(time, duration || 0)}
+              onChange={(e) => {
+                const t = parseFloat(e.target.value);
+                setTime(snapFrames ? Math.round(t * FPS) / FPS : t);
+              }}
+              disabled={duration <= 0}
+              style={{ width: isCompact ? 180 : isPlayer ? 360 : 260 }}
+            />
+            {mode === "admin" && <span className="small">{`${fmt(time)} / ${fmt(duration || 0)} • ${FPS} fps`}</span>}
+          </div>
+          <button className="btn primary" onClick={() => setPlaying((p) => !p)} disabled={duration <= 0}>
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button className="btn" onClick={() => setTime(0)} disabled={duration <= 0}>
+            Reset
+          </button>
+          <div className="ctrl">
+            <span className="label">Speed</span>
+            <input
+              className="slider"
+              type="range"
+              min={0.1}
+              max={2}
+              step={0.1}
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              disabled={duration <= 0}
+              style={{ width: isCompact ? 100 : 120 }}
+            />
+            <span className="small">{speed.toFixed(1)}x</span>
+          </div>
+          <div className="ctrl">
+            <span className="label">Display</span>
+            <CustomSelect
+              value={displayMode}
+              onChange={(v) => setDisplayMode(v as "normal" | "stick")}
+              options={[
+                { value: "normal", label: "Normal" },
+                { value: "stick", label: "Stick Figure" },
+              ]}
+              title={displayMode}
+            />
+          </div>
+        </div>
+
+        {/* Display controls */}
+        <div className="toolbar-group toolbar-group-right">
+          <label className="toggle">
+            <input type="checkbox" checked={showMainGraph} onChange={(e) => setShowMainGraph(e.target.checked)} />
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+              <path d="M1 10L4 7L6 9L9 4L13 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M13 8V12H1V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Graph 1</span>
+          </label>
+          <label className="toggle">
+            <input type="checkbox" checked={showSecond} onChange={(e) => setShowSecond(e.target.checked)} />
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+              <path d="M1 10L4 7L6 9L9 4L13 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M13 8V12H1V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Graph 2</span>
+          </label>
+          {hasReport && (
             <button className="btn btn--primary" onClick={() => setShowPdfViewer(true)}>
-              Read Report
+              Report
             </button>
-          </>
-        )}
+          )}
 
-        {/* Player toggles */}
-        <label className="toggle">
-          <input type="checkbox" checked={showMainGraph} onChange={(e) => setShowMainGraph(e.target.checked)} />
-          <span>Main graph</span>
-        </label>
-        <label className="toggle">
-          <input type="checkbox" checked={showSecond} onChange={(e) => setShowSecond(e.target.checked)} />
-          <span>Second graph</span>
-        </label>
-
-        {/* Admin-only layout & snap */}
-        {mode === "admin" && (
-          <>
-            <div className="ctrl">
-              <span className="label">Layout</span>
-              <select className="select" value={graphDock} onChange={(e) => setGraphDock(e.target.value as Layout)}>
-                <option value="right">Right (stacked)</option>
-                <option value="bottom">Bottom</option>
-              </select>
-            </div>
-
-            <div className="ctrl">
-              <span className="label">Panels</span>
-              <select className="select" value={panelMode} onChange={(e) => setPanelMode(e.target.value as PanelMode)}>
-                <option value="docked">Docked UI</option>
-                <option value="in3d">In-3D (holograms)</option>
-              </select>
-            </div>
-
-            <label className="toggle">
-              <input type="checkbox" checked={snapFrames} onChange={(e) => setSnapFrames(e.target.checked)} />
-              <span>Snap to frames</span>
-            </label>
-          </>
-        )}
-
-        {/* Time slider */}
-        <div className="ctrl grow">
-          <span className="label">Time</span>
-          <input
-            className="slider"
-            type="range"
-            min={0}
-            max={Math.max(0.001, duration || 0.001)}
-            step={snapFrames ? 1 / FPS : Math.max(0.001, (duration || 1) / 1000)}
-            value={Math.min(time, duration || 0)}
-            onChange={(e) => {
-              const t = parseFloat(e.target.value);
-              setTime(snapFrames ? Math.round(t * FPS) / FPS : t);
-            }}
-            disabled={duration <= 0}
-            style={{ width: isCompact ? 180 : isPlayer ? 360 : 260 }}
-          />
-          {mode === "admin" && <span className="small">{`${fmt(time)} / ${fmt(duration || 0)} • ${FPS} fps`}</span>}
         </div>
-
-        {/* Speed */}
-        <div className="ctrl">
-          <span className="label">Speed</span>
-          <input
-            className="slider"
-            type="range"
-            min={0.1}
-            max={2}
-            step={0.1}
-            value={speed}
-            onChange={(e) => setSpeed(parseFloat(e.target.value))}
-            disabled={duration <= 0}
-            style={{ width: isCompact ? 140 : 160 }}
-          />
-          <span className="small">{speed.toFixed(1)}x</span>
-        </div>
-
-        {/* Transport */}
-        <button className="btn primary" onClick={() => setPlaying((p) => !p)} disabled={duration <= 0}>
-          {playing ? "Pause" : "Play"}
-        </button>
-        <button className="btn" onClick={() => setTime(0)} disabled={duration <= 0}>
-          Reset
-        </button>
       </div>
 
       {/* 3D + (optional) hologram panels */}
@@ -906,17 +1099,27 @@ export default function ThreeView() {
           bottom: panelMode === "docked" && graphDock === "bottom" && requestedGraphCount > 0 ? dockPx : 0,
         }}
         dpr={isCompact ? [1, 1.25] : [1, 2]}
-        camera={{ position: [4, 3, 6], fov: 45 }}
-        gl={{ antialias: true, powerPreference: isCompact ? "low-power" : "high-performance" }}
-        onCreated={({ gl }) => {
+        camera={{ position: [4, 3, 6], fov: 50, near: 0.1, far: 200 }}
+        gl={{
+          antialias: true,
+          powerPreference: isCompact ? "low-power" : "high-performance",
+          alpha: false,
+        }}
+        shadows
+        onCreated={({ gl, scene }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.0;
-          gl.shadowMap.enabled = false;
+          gl.toneMappingExposure = 1.1;
+          gl.shadowMap.enabled = true;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          gl.setClearColor("#0a0d12", 1);
+          
+          // Add subtle fog for depth
+          scene.fog = new THREE.FogExp2("#0a0d12", 0.015);
         }}
       >
-        <Scene fbxUrl={fbxUrl} time={time} onReadyDuration={onReadyDuration} />
-        <OrbitControls enableDamping dampingFactor={0.08} />
+        <Scene fbxUrl={fbxUrl} time={time} displayMode={displayMode} onReadyDuration={onReadyDuration} />
+        <CameraControlsComponent controlsRef={cameraControlsRef} />
 
         {/* In-3D graph panels */}
         {panelMode === "in3d" && showMainGraph && series && selectedChannel && (
@@ -933,7 +1136,6 @@ export default function ThreeView() {
               fbxDuration={duration || 0}
               height={200}
               title=""
-              yLabel="Value"
               onSeek={handleGraphSeek}
             />
           </GraphHoloPanel>
@@ -953,7 +1155,6 @@ export default function ThreeView() {
               fbxDuration={duration || 0}
               height={200}
               title=""
-              yLabel="Value"
               onSeek={handleGraphSeek}
             />
           </GraphHoloPanel>
@@ -994,7 +1195,6 @@ export default function ThreeView() {
                   fbxDuration={duration || 0}
                   height={perGraphHeight}
                   title={`Signal · ${sheet ? sheet + " · " : ""}${prettyLabel(selectedChannel)}`}
-                  yLabel="Value"
                   onSeek={handleGraphSeek}
                 />
               )}
@@ -1006,7 +1206,6 @@ export default function ThreeView() {
                   fbxDuration={duration || 0}
                   height={perGraphHeight}
                   title={`Signal · ${sheet ? sheet + " · " : ""}${prettyLabel(selectedChannelB)}`}
-                  yLabel="Value"
                   onSeek={handleGraphSeek}
                 />
               )}
@@ -1090,15 +1289,14 @@ export default function ThreeView() {
         .toolbar {
           position: absolute; top: 12px; left: 12px; right: 12px;
           display: flex; flex-wrap: wrap; align-items: center;
-          gap: 12px; row-gap: 10px; padding: 12px 14px;
+          gap: 8px; row-gap: 10px; padding: 12px 16px;
           border-radius: 14px;
           background:
-            radial-gradient(900px 140px at 10% -60%, rgba(229,129,43,0.09), transparent 65%),
-            linear-gradient(180deg, rgba(18,22,28,0.82), rgba(12,15,20,0.62));
-          backdrop-filter: saturate(1.15) blur(10px);
+            linear-gradient(180deg, rgba(20,22,26,0.85), rgba(15,17,21,0.75));
+          backdrop-filter: saturate(1.1) blur(10px);
           border: 1px solid var(--border);
-          box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,0.06);
-          z-index: 10; pointer-events: auto; min-height: 64px;
+          box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,0.04);
+          z-index: 10; pointer-events: auto; min-height: 60px;
         }
 
         .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
@@ -1112,27 +1310,94 @@ export default function ThreeView() {
           font-size: var(--brand-text); text-shadow: 0 1px 0 rgba(0,0,0,0.35);
         }
 
-        .ctrl { display: flex; align-items: center; gap: 6px; }
+        .toolbar-group {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 10px;
+          border-left: 1px solid rgba(255,255,255,0.08);
+        }
+        .toolbar-group:first-of-type {
+          border-left: none;
+          padding-left: 0;
+        }
+        .toolbar-group.transport-controls {
+          border-left: 1px solid rgba(255,255,255,0.08);
+          padding-left: 10px;
+        }
+        .toolbar-group-right {
+          margin-left: auto;
+          border-right: none;
+          padding-right: 0;
+        }
+        
+        .ctrl { display: flex; align-items: center; gap: 8px; }
         .ctrl.grow { min-width: 320px; }
-        .label { font-size: 12px; color: var(--muted); opacity: 0.9; }
-        .small { font-size: 12px; color: var(--muted); opacity: 0.85; }
+        .label { font-size: 11px; color: #d0d0d0; opacity: 0.9; font-weight: 500; }
+        .small { font-size: 11px; color: #d0d0d0; opacity: 0.85; }
 
         .select {
           appearance: none;
-          background: linear-gradient(180deg, #12171e, #0f141a);
+          background: linear-gradient(180deg, rgba(22,27,34,0.95), rgba(18,23,30,0.95));
           color: var(--text);
           border: 1px solid var(--border-strong);
           border-radius: 10px;
-          padding: 6px 28px 6px 10px;
-          font-size: 12px;
+          padding: 7px 32px 7px 12px;
+          font-size: 13px;
+          font-weight: 500;
           outline: none;
-          height: 32px;
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-          transition: border-color .18s ease, box-shadow .18s ease, transform .06s ease;
+          height: 36px;
+          min-width: 140px;
+          cursor: pointer;
+          box-shadow: 
+            inset 0 1px 2px rgba(0,0,0,0.3),
+            inset 0 0 0 1px rgba(255,255,255,0.04),
+            0 2px 8px rgba(0,0,0,0.2);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           background-image:
-            linear-gradient(180deg, transparent 0 50%, rgba(255,255,255,0.02) 50% 100%),
-            radial-gradient(circle at right 12px center, var(--accent) 0 2px, transparent 3px);
+            linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 50%, rgba(0,0,0,0.1) 100%),
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4L6 8L10 4' stroke='%23e5812b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+          background-position: center, right 10px center;
           background-repeat: no-repeat;
+          background-size: 100%, 12px 12px;
+        }
+        .select:hover {
+          border-color: rgba(229,129,43,0.4);
+          background: linear-gradient(180deg, rgba(26,32,40,0.98), rgba(22,27,34,0.98));
+          box-shadow: 
+            inset 0 1px 2px rgba(0,0,0,0.3),
+            inset 0 0 0 1px rgba(229,129,43,0.15),
+            0 4px 12px rgba(0,0,0,0.3),
+            0 0 0 1px rgba(229,129,43,0.1);
+          transform: translateY(-1px);
+        }
+        .select:focus {
+          border-color: var(--accent);
+          background: linear-gradient(180deg, rgba(28,34,42,1), rgba(24,29,36,1));
+          box-shadow: 
+            inset 0 1px 2px rgba(0,0,0,0.3),
+            inset 0 0 0 1px rgba(229,129,43,0.25),
+            0 6px 20px rgba(229,129,43,0.25),
+            0 0 0 3px rgba(229,129,43,0.15);
+          transform: translateY(-1px);
+        }
+        .select:active {
+          transform: translateY(0);
+          box-shadow: 
+            inset 0 2px 4px rgba(0,0,0,0.4),
+            inset 0 0 0 1px rgba(229,129,43,0.2),
+            0 2px 8px rgba(0,0,0,0.3);
+        }
+        .select option {
+          background: #1a2028;
+          color: var(--text);
+          padding: 10px 12px;
+          font-weight: 500;
+        }
+        .select option:hover,
+        .select option:checked {
+          background: linear-gradient(180deg, rgba(229,129,43,0.2), rgba(207,106,20,0.15));
+          color: var(--text);
         }
 
         .btn {
@@ -1155,8 +1420,26 @@ export default function ThreeView() {
           outline: none;
         }
 
-        .toggle { display:flex; align-items:center; gap:6px; color: var(--muted); font-size:12px; }
+        .toggle { 
+          display: flex; 
+          align-items: center; 
+          gap: 6px; 
+          color: var(--muted); 
+          font-size: 12px;
+          cursor: pointer;
+        }
         .toggle input { accent-color: var(--accent); }
+        .toggle svg {
+          opacity: 0.85;
+          transition: opacity 0.2s ease;
+        }
+        .toggle:hover svg {
+          opacity: 1;
+        }
+        .toggle input:checked ~ svg {
+          color: var(--accent);
+          opacity: 1;
+        }
 
         .pill {
           display:inline-flex; align-items:center;
@@ -1168,18 +1451,26 @@ export default function ThreeView() {
 
         .panel-wrap {
           pointer-events: auto; border-radius: 14px;
-          background: linear-gradient(180deg, rgba(14,18,23,0.66), rgba(10,13,17,0.58));
+          background: linear-gradient(180deg, rgba(20,22,26,0.75), rgba(15,17,21,0.65));
           border: 1px solid var(--border);
           box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,0.04);
         }
 
         @media (max-width: 900px), (max-height: 700px) {
-          .toolbar { gap: 8px; padding: 10px 12px; }
+          .toolbar { gap: 3px; row-gap: 6px; padding: 8px 10px; }
+          .toolbar-group { gap: 6px; padding: 0 6px; }
           .brand .name { display: none; }
           .ctrl.grow { min-width: 180px; }
-          .btn { height: 30px; font-size: 12px; padding: 0 10px; }
-          .select { height: 30px; font-size: 12px; }
-          .small { font-size: 11px; }
+          .btn { height: 32px; font-size: 11px; padding: 0 8px; }
+          .select { 
+            height: 34px; 
+            font-size: 12px; 
+            padding: 6px 28px 6px 10px;
+            min-width: 100px;
+          }
+          .label { font-size: 10px; }
+          .small { font-size: 10px; }
+          .toggle { font-size: 11px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -1254,6 +1545,8 @@ export default function ThreeView() {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }
